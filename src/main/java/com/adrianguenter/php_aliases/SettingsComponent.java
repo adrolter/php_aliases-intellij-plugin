@@ -1,11 +1,17 @@
 package com.adrianguenter.php_aliases;
 
+import com.intellij.ui.ColorUtil;
+import com.intellij.ui.JBColor;
 import com.intellij.ui.table.JBTable;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableColumn;
 import java.awt.*;
-import java.util.Map;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
+import java.util.ArrayList;
+import java.util.List;
 
 public class SettingsComponent {
 
@@ -27,24 +33,66 @@ public class SettingsComponent {
         deleteMenuItem.addActionListener(e -> {
             int selectedRow = table.getSelectedRow();
             if (selectedRow != -1 && selectedRow < tableModel.getRowCount() - 1) {
-                tableModel.removeRow(selectedRow);
+                tableModel.removeRowAt(selectedRow);
             }
         });
         popupMenu.add(deleteMenuItem);
-
         table.setComponentPopupMenu(popupMenu);
+
+        table.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                int row = table.rowAtPoint(e.getPoint());
+                if (row < 0) {
+                    return;
+                }
+
+                int column = table.columnAtPoint(e.getPoint());
+
+                List<AliasMappingDraft.ValidationError> errors;
+                if (!tableModel.rowIsLast(row) || !tableModel.rowIsEmpty(row)) {
+                    errors = tableModel.getValidationErrorsAt(row, AliasTableModel.Column.forIndex(column));
+                }
+                else {
+                    errors = new ArrayList<>();
+                }
+
+                table.setToolTipText(!errors.isEmpty()
+                        ? String.join("\n", errors.stream().map(AliasMappingDraft.ValidationError::message).toList())
+                        : null);
+            }
+        });
+
+        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                Component component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
+                List<AliasMappingDraft.ValidationError> errors;
+                if (!tableModel.rowIsLast(row) || !tableModel.rowIsEmpty(row)) {
+                    errors = tableModel.getValidationErrorsAt(row, AliasTableModel.Column.forIndex(column));
+                }
+                else {
+                    errors = new ArrayList<>();
+                }
+
+                if (!errors.isEmpty()) {
+                    component.setBackground(new JBColor(JBColor.PINK, ColorUtil.darker(JBColor.RED, 10)));
+                } else {
+                    component.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+                }
+
+                return component;
+            }
+        });
     }
 
     public JPanel getPanel() {
         return panel;
     }
 
-    public Map<String, String> getAliasMappings() {
-        return tableModel.getAliasMappings();
-    }
-
-    public void setAliasMappings(Map<String, String> aliasMappings) {
-        tableModel.setAliasMappings(aliasMappings);
+    public AliasTableModel getTableModel() {
+        return tableModel;
     }
 
     private void setDefaultColumnWidths() {
@@ -54,13 +102,13 @@ public class SettingsComponent {
                 return;
             }
 
-            int aliasColumnWidth = (int) (tableWidth * 0.3); // 30%
-            int fqnColumnWidth = (int) (tableWidth * 0.7);   // 70%
+            int aliasColumnWidth = (int) (tableWidth * 0.3);
+            int fqnColumnWidth = (int) (tableWidth * 0.7);
 
-            TableColumn aliasColumn = table.getColumnModel().getColumn(0); // Alias column
+            TableColumn aliasColumn = table.getColumnModel().getColumn(AliasTableModel.Column.Alias.index());
             aliasColumn.setPreferredWidth(aliasColumnWidth);
 
-            TableColumn fqnColumn = table.getColumnModel().getColumn(1);   // FQN column
+            TableColumn fqnColumn = table.getColumnModel().getColumn(AliasTableModel.Column.Fqn.index());
             fqnColumn.setPreferredWidth(fqnColumnWidth);
 
             table.revalidate();

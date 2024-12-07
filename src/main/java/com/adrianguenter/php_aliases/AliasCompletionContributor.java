@@ -15,7 +15,6 @@ import com.jetbrains.php.lang.psi.elements.PhpUse;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
-import java.util.Map;
 import java.util.Objects;
 
 public class AliasCompletionContributor
@@ -28,22 +27,18 @@ public class AliasCompletionContributor
 
                 Settings.State state = Objects.requireNonNull(Settings.getInstance(parameters.getOriginalFile().getProject()).getState());
 
-                // Fetch the current typed text
                 String currentPrefix = resultSet.getPrefixMatcher().getPrefix();
-
                 if (currentPrefix.isEmpty()) {
                     return;
                 }
 
-                // Add matching aliases based on user-defined mappings
-                for (Map.Entry<String, String> entry : state.aliasMappings.entrySet()) {
-                    String alias = entry.getKey();
-                    String fqcn = entry.getValue();
-
+                for (var aliasMapping : state.aliasMappings) {
+                    String alias = aliasMapping.alias;
+                    String fqn = aliasMapping.fullyQualifiedName;
                     boolean aliasStartsWithInput = alias.startsWith(currentPrefix);
-                    boolean fqcnEndsWithInput = fqcn.endsWith("\\" + currentPrefix);
+                    boolean fqnEndsWithInput = fqn.endsWith("\\" + currentPrefix);
 
-                    if (!aliasStartsWithInput && !fqcnEndsWithInput) {
+                    if (!aliasStartsWithInput && !fqnEndsWithInput) {
                         continue;
                     }
 
@@ -52,18 +47,18 @@ public class AliasCompletionContributor
                     PsiElement elementContext = parameters.getOriginalPosition();
                     PhpNamespace namespace = PsiTreeUtil.getParentOfType(elementContext, PhpNamespace.class);
 
-                    if (isUseStatementPresent(namespace != null ? namespace : phpFile, fqcn, alias)) {
+                    if (isUseStatementPresent(namespace != null ? namespace : phpFile, fqn, alias)) {
                         continue;
                     }
 
                     LookupElementBuilder builder = LookupElementBuilder.create(alias)
-                            .withInsertHandler(new AliasInsertHandler(fqcn, alias))
-                            .withLookupString(fqcn)
-                            .withTypeText(fqcn.substring(1)) // strip leading \
+                            .withInsertHandler(new AliasInsertHandler(fqn, alias))
+                            .withLookupString(fqn)
+                            .withTypeText(fqn.substring(1)) // strip leading \
                             .withItemTextItalic(true)
                             .withIcon(AllIcons.Nodes.Alias);
 
-                    if (fqcnEndsWithInput) {
+                    if (fqnEndsWithInput) {
                         builder = builder.withLookupString(currentPrefix);
                     }
 
