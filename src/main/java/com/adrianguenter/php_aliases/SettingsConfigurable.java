@@ -1,20 +1,26 @@
 package com.adrianguenter.php_aliases;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.options.Configurable;
+import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.DialogWrapper;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.Objects;
 
-public class SettingsConfigurable implements Configurable {
+public class SettingsConfigurable
+        implements Configurable {
 
     private SettingsComponent settingsComponent;
     private final Project project;
+    private final Settings settingsService;
 
     public SettingsConfigurable(@NotNull Project project) {
         this.project = project;
+        this.settingsService = Settings.getInstance(project);
     }
 
     @Override
@@ -24,30 +30,64 @@ public class SettingsConfigurable implements Configurable {
 
     @Override
     public @Nullable JComponent createComponent() {
-        settingsComponent = new SettingsComponent();
-        return settingsComponent.getPanel();
+        this.settingsComponent = new SettingsComponent(
+                this.project,
+                () -> ApplicationManager.getApplication().invokeLater(() -> {
+                    if (this.settingsComponent == null) {
+                        // User clicked "Cancel", etc.
+                        return;
+                    }
+
+                    DialogWrapper dialog = DialogWrapper.findInstance(this.settingsComponent.getPanel());
+                    if (dialog != null) {
+                        dialog.setOKActionEnabled(this.settingsComponent.getTableModel().isValid());
+                    }
+                })
+        );
+        return this.settingsComponent.getPanel();
     }
 
     @Override
     public boolean isModified() {
-        Settings.State state = Objects.requireNonNull(Settings.getInstance(project).getState());
-        return !settingsComponent.getAliasMappings().equals(state.aliasMappings);
+        if (this.settingsComponent == null) {
+            return false;
+        }
+
+        if (!this.settingsComponent.getTableModel().isValid()) {
+            // An invalid model always implies modification
+            return true;
+        }
+
+        return this.settingsComponent.getTableModel().isModified();
     }
 
     @Override
-    public void apply() {
-        Settings.State state = Objects.requireNonNull(Settings.getInstance(project).getState());
-        state.aliasMappings = settingsComponent.getAliasMappings();
+    public void apply() throws ConfigurationException {
+        if (!this.settingsComponent.getTableModel().isValid()) {
+            throw new ConfigurationException("There are validation errors in the alias mappings. Please fix them before applying.");
+        }
+
+        this.getSettingsState().aliasMappings = this.settingsComponent.getTableModel().getAliasMappings();
+
+        this.reset();
     }
 
     @Override
     public void reset() {
-        Settings.State state = Objects.requireNonNull(Settings.getInstance(project).getState());
-        settingsComponent.setAliasMappings(state.aliasMappings);
+        this.settingsComponent.getTableModel().setAliasMappings(this.getSettingsState().aliasMappings);
+
+        DialogWrapper dialog = DialogWrapper.findInstance(this.settingsComponent.getPanel());
+        if (dialog != null) {
+            dialog.setOKActionEnabled(true);
+        }
     }
 
     @Override
     public void disposeUIResources() {
-        settingsComponent = null;
+        this.settingsComponent = null;
+    }
+
+    private Settings.State getSettingsState() {
+        return Objects.requireNonNull(this.settingsService.getState());
     }
 }

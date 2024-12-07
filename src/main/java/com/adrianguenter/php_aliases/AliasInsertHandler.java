@@ -47,14 +47,14 @@ public class AliasInsertHandler implements InsertHandler<LookupElement> {
 
         WriteCommandAction.runWriteCommandAction(project, () -> {
             // Insert alias at caret position
-            context.getDocument().replaceString(context.getStartOffset(), context.getTailOffset(), alias);
+            context.getDocument().replaceString(context.getStartOffset(), context.getTailOffset(), this.alias);
 //            PsiDocumentManager.getInstance(project).commitDocument(context.getDocument());
 
             boolean doOptimizeImports;
-            if (isUseStatementPresent(namespace != null ? namespace : phpFile, fqcn, alias)) {
+            if (this.isUseStatementPresent(namespace != null ? namespace : phpFile, this.fqcn, this.alias)) {
                 doOptimizeImports = false;
             } else {
-                addUseStatementWithAlias(project, namespace != null ? namespace : phpFile, fqcn, alias);
+                this.addUseStatementWithAlias(project, namespace != null ? namespace : phpFile, this.fqcn, this.alias);
                 doOptimizeImports = true;
             }
 
