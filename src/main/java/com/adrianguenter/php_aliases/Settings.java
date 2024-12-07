@@ -2,12 +2,12 @@ package com.adrianguenter.php_aliases;
 
 import com.intellij.openapi.components.*;
 import com.intellij.openapi.project.Project;
+import com.intellij.util.xmlb.annotations.Tag;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @Service(Service.Level.PROJECT)
 @State(
@@ -19,7 +19,8 @@ final class Settings
 
     static class State {
         @NonNls
-        public Map<String, String> aliasMappings = new HashMap<>();
+        @Tag("aliasMappings")
+        public List<AliasMapping> aliasMappings = new ArrayList<>();
     }
 
     private State state = new State();
@@ -31,7 +32,7 @@ final class Settings
     @Nullable
     @Override
     public State getState() {
-        return state;
+        return this.state;
     }
 
     @Override
