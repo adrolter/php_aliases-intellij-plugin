@@ -1,65 +1,161 @@
 package com.adrianguenter.php_aliases;
 
+import com.adrianguenter.lib.AutoCompletionData;
+import com.intellij.openapi.project.Project;
 import com.intellij.ui.ColorUtil;
 import com.intellij.ui.JBColor;
+import com.intellij.ui.TextFieldWithAutoCompletion;
 import com.intellij.ui.table.JBTable;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.TableCellEditor;
 import javax.swing.table.TableColumn;
 import java.awt.*;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseMotionAdapter;
-import java.util.ArrayList;
+import java.awt.event.*;
+import java.util.*;
 import java.util.List;
 
 public class SettingsComponent {
+    private class FqnCellEditor extends AbstractCellEditor implements TableCellEditor {
+        // StringsCompletionWithCacheProvider
+        private static class CompletionProvider extends TextFieldWithAutoCompletion.StringsCompletionProvider {
 
+            final Map<String, AutoCompletionData> variants;
+
+            CompletionProvider(Map<String, AutoCompletionData> variants, @Nullable Icon icon) {
+                super(Collections.unmodifiableSet(variants.keySet()), icon);
+
+                this.variants = variants;
+            }
+
+            @Override
+            protected Icon getIcon(@NotNull String item) {
+                return this.variants.get(item).icon();
+            }
+
+            @Override
+            protected @Nullable String getTailText(@NotNull String item) {
+                return this.variants.get(item).tailText();
+            }
+
+            @Override
+            protected String getTypeText(@NotNull String item) {
+                return this.variants.get(item).typeText();
+            }
+
+            @Override
+            protected @NotNull String getLookupString(@NotNull String item) {
+                var lookupString = this.variants.get(item).lookupString();
+
+                return lookupString != null ? lookupString : item;
+            }
+        }
+
+        private final TextFieldWithAutoCompletion<String> textField;
+
+        FqnCellEditor(Map<String, AutoCompletionData> completions) {
+            CompletionProvider completionProvider = new CompletionProvider(completions, null);
+            this.textField = new TextFieldWithAutoCompletion<>(
+                    SettingsComponent.this.project, completionProvider, true, null);
+        }
+
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
+            this.textField.setText(value != null ? value.toString() : "");
+            return textField;
+        }
+
+        @Override
+        public Object getCellEditorValue() {
+            return this.textField.getText();
+        }
+    }
+
+    private final Project project;
     private final JPanel panel;
     private final JBTable table;
     private final AliasTableModel tableModel;
 
-    public SettingsComponent() {
-        tableModel = new AliasTableModel();
-        table = new JBTable(tableModel);
-        panel = new JPanel(new BorderLayout());
-        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+    public SettingsComponent(Project project, Map<String, AutoCompletionData> knownFqns, Runnable validationListener) {
+        this.project = project;
+        this.tableModel = new AliasTableModel(validationListener, knownFqns.keySet());
+        this.table = new JBTable(this.tableModel);
+        this.panel = new JPanel(new BorderLayout());
+        this.panel.add(new JScrollPane(this.table), BorderLayout.CENTER);
 
         setDefaultColumnWidths();
 
-        // Add right-click context menu
         JPopupMenu popupMenu = new JPopupMenu();
         JMenuItem deleteMenuItem = new JMenuItem("Delete");
         deleteMenuItem.addActionListener(e -> {
             int selectedRow = table.getSelectedRow();
-            if (selectedRow != -1 && selectedRow < tableModel.getRowCount() - 1) {
-                tableModel.removeRowAt(selectedRow);
+            if (selectedRow == -1) {
+                return;
             }
+
+            this.tableModel.removeRowAt(selectedRow);
+            this.table.revalidate();
+            this.table.repaint();
         });
         popupMenu.add(deleteMenuItem);
-        table.setComponentPopupMenu(popupMenu);
+
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showPopupMenu(e);
+                }
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showPopupMenu(e);
+                }
+            }
+
+            private void showPopupMenu(MouseEvent e) {
+                int row = table.rowAtPoint(e.getPoint());
+                if (row == -1) {
+                    return;
+                }
+
+                table.setRowSelectionInterval(row, row);
+                popupMenu.show(e.getComponent(), e.getX(), e.getY());
+            }
+        });
 
         table.addMouseMotionListener(new MouseMotionAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
                 int row = table.rowAtPoint(e.getPoint());
-                if (row < 0) {
+                if (row == -1) {
                     return;
                 }
 
-                int column = table.columnAtPoint(e.getPoint());
+                var column = AliasTableModel.Column.forIndex(table.columnAtPoint(e.getPoint()));
 
-                List<AliasMappingDraft.ValidationError> errors;
+                String text = "";
+
+                var warnings = tableModel.getValidationWarningsAt(row, column);
+
+                if (!warnings.isEmpty()) {
+                    text += String.join("\n", warnings.stream().map(v -> "WARNING: " + v.message()).toList());
+                }
+
+                List<AliasMappingDraft.ValidationError> errors = null;
                 if (!tableModel.rowIsLast(row) || !tableModel.rowIsEmpty(row)) {
-                    errors = tableModel.getValidationErrorsAt(row, AliasTableModel.Column.forIndex(column));
-                }
-                else {
-                    errors = new ArrayList<>();
+                    errors = tableModel.getValidationErrorsAt(row, column);
                 }
 
-                table.setToolTipText(!errors.isEmpty()
-                        ? String.join("\n", errors.stream().map(AliasMappingDraft.ValidationError::message).toList())
-                        : null);
+                if (errors != null && !errors.isEmpty()) {
+                    text += String.join("\n", errors.stream().map(v -> "ERROR: " + v.message()).toList());
+                }
+
+                table.setToolTipText(text.trim());
             }
         });
 
@@ -68,23 +164,40 @@ public class SettingsComponent {
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
                 Component component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
-                List<AliasMappingDraft.ValidationError> errors;
+                Color background = table.getBackground(); // JBColor.background();
+                Color foreground = table.getForeground(); // JBColor.foreground();
+
                 if (!tableModel.rowIsLast(row) || !tableModel.rowIsEmpty(row)) {
-                    errors = tableModel.getValidationErrorsAt(row, AliasTableModel.Column.forIndex(column));
-                }
-                else {
-                    errors = new ArrayList<>();
+                    var warnings = tableModel.getValidationWarningsAt(row, AliasTableModel.Column.forIndex(column));
+                    var errors = tableModel.getValidationErrorsAt(row, AliasTableModel.Column.forIndex(column));
+
+                    if (!errors.isEmpty()) {
+                        background = new JBColor(JBColor.PINK, ColorUtil.darker(JBColor.RED, 10));
+                        if (isSelected) {
+                            background = ColorUtil.blendColorsInRgb(table.getSelectionBackground(), background, 0.5);
+                        }
+                    } else if (!warnings.isEmpty()) {
+                        background = new JBColor(ColorUtil.brighter(JBColor.YELLOW, 5), ColorUtil.darker(JBColor.YELLOW, 10));
+                        if (isSelected) {
+                            background = ColorUtil.blendColorsInRgb(table.getSelectionBackground(), background, 0.5);
+                        }
+                    } else {
+                        if (isSelected) {
+                            background = table.getSelectionBackground();
+                        }
+                    }
                 }
 
-                if (!errors.isEmpty()) {
-                    component.setBackground(new JBColor(JBColor.PINK, ColorUtil.darker(JBColor.RED, 10)));
-                } else {
-                    component.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
-                }
+                component.setBackground(background);
+                component.setForeground(foreground);
 
                 return component;
             }
         });
+
+        table.getColumnModel()
+                .getColumn(AliasTableModel.Column.Fqn.index())
+                .setCellEditor(new FqnCellEditor(knownFqns));
     }
 
     public JPanel getPanel() {
@@ -97,13 +210,13 @@ public class SettingsComponent {
 
     private void setDefaultColumnWidths() {
         SwingUtilities.invokeLater(() -> {
-            int tableWidth = table.getWidth();
-            if (tableWidth < 200) {
+            int totalWidth = table.getWidth() - 100;
+            if (totalWidth < 200) {
                 return;
             }
 
-            int aliasColumnWidth = (int) (tableWidth * 0.3);
-            int fqnColumnWidth = (int) (tableWidth * 0.7);
+            int aliasColumnWidth = (int) (totalWidth * 0.30);
+            int fqnColumnWidth = (int) (totalWidth * 0.70);
 
             TableColumn aliasColumn = table.getColumnModel().getColumn(AliasTableModel.Column.Alias.index());
             aliasColumn.setPreferredWidth(aliasColumnWidth);

@@ -24,18 +24,19 @@ public class AliasTableModel extends AbstractTableModel {
         }
     }
 
-    private final List<AliasMappingDraft> draftsList = new ArrayList<>();
-
-    private boolean isValid;
-
-    private Runnable validationListener;
-
-    AliasTableModel() {
-        this.isValid = true;
+    private record AliasFqnPair(String alias, String fqn) {
     }
 
-    public void setValidationListener(Runnable listener) {
-        this.validationListener = listener;
+    private final List<AliasMappingDraft> draftsList = new ArrayList<>();
+    private final Runnable validationListener;
+    private final Set<String> fqnSet;
+    private int originalAliasMappingsCount;
+    private boolean isValid;
+
+    AliasTableModel(Runnable validationListener, Set<String> fqnSet) {
+        this.validationListener = validationListener;
+        this.fqnSet = fqnSet;
+        this.isValid = true;
     }
 
     private void notifyValidationStateChange() {
@@ -44,10 +45,10 @@ public class AliasTableModel extends AbstractTableModel {
         }
     }
 
-    public List<AliasMapping> getAliasMappings(boolean resetDirty) {
+    public List<AliasMapping> getAliasMappings() {
         return draftsList.stream()
                 .filter(AliasMappingDraft::isValid)
-                .map(v -> v.toAliasMapping(resetDirty))
+                .map(AliasMappingDraft::toAliasMapping)
                 .toList();
     }
 
@@ -55,10 +56,11 @@ public class AliasTableModel extends AbstractTableModel {
         draftsList.clear();
         draftsList.addAll(
                 aliasMappings.stream()
-                        .map(v -> AliasMappingDraft.fromAliasMapping(v, 0))
+                        .map(v -> AliasMappingDraft.fromAliasMapping(v, 0, this.fqnSet))
                         .toList());
-        draftsList.add(new AliasMappingDraft(UUID.randomUUID(), draftsList.size(), "", ""));
+        draftsList.add(new AliasMappingDraft(UUID.randomUUID(), draftsList.size(), "", "", this.fqnSet));
 
+        originalAliasMappingsCount = draftsList.size();
         fireTableDataChanged();
     }
 
@@ -93,9 +95,9 @@ public class AliasTableModel extends AbstractTableModel {
         fireTableCellUpdated(rowIndex, column.index());
 
         if (rowIndex == draftsList.size() - 1 && column == Column.Alias && !value.isEmpty()) {
-            // Add a new entry when typing into the blank row
+            // Add value new entry when typing into the blank row
             var newRowIndex = draftsList.size();
-            draftsList.add(new AliasMappingDraft(UUID.randomUUID(), newRowIndex, "", ""));
+            draftsList.add(new AliasMappingDraft(UUID.randomUUID(), newRowIndex, "", "", this.fqnSet));
             fireTableRowsInserted(newRowIndex, newRowIndex);
         }
     }
@@ -133,6 +135,14 @@ public class AliasTableModel extends AbstractTableModel {
 
         // TODO: Before rewriting indices?
         fireTableRowsDeleted(index, index);
+        if (index > 0) {
+            fireTableRowsUpdated(index, index - 1);
+        }
+//        // Force repaint if necessary
+//        SwingUtilities.invokeLater(() -> {
+//            tableMode.revalidate();
+//            table.repaint();
+//        });
     }
 
     public List<AliasMappingDraft.ValidationError> getValidationErrorsAt(int index, Column column) {
@@ -141,6 +151,14 @@ public class AliasTableModel extends AbstractTableModel {
 
     public List<AliasMappingDraft.ValidationError> getValidationErrorsAt(int index) {
         return draftsList.get(index).getValidationErrors();
+    }
+
+    public List<AliasMappingDraft.ValidationWarning> getValidationWarningsAt(int index, Column column) {
+        return draftsList.get(index).getValidationWarningsAtColumn(column);
+    }
+
+    public List<AliasMappingDraft.ValidationWarning> getValidationWarningsAt(int index) {
+        return draftsList.get(index).getValidationWarnings();
     }
 
     public boolean rowIsEmpty(int index) {
@@ -159,7 +177,7 @@ public class AliasTableModel extends AbstractTableModel {
         int i = 0;
         for (AliasMappingDraft draft : draftsList) {
             try {
-                if (!draft.isValid() && (i != (draftsList.size() - 1) || !draft.isEmpty())) {
+                if (!draft.isValid() && (!rowIsLast(i) || !draft.isEmpty())) {
                     if (this.isValid) {
                         notifyValidationStateChange();
                     }
@@ -167,8 +185,7 @@ public class AliasTableModel extends AbstractTableModel {
                     this.isValid = false;
                     return false;
                 }
-            }
-            finally {
+            } finally {
                 ++i;
             }
         }
@@ -182,6 +199,10 @@ public class AliasTableModel extends AbstractTableModel {
     }
 
     public boolean isModified() {
+        if (draftsList.size() != originalAliasMappingsCount) {
+            return true;
+        }
+
         for (AliasMappingDraft draft : draftsList) {
             if (draft.isDirty()) {
                 return true;

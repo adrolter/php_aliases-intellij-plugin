@@ -1,61 +1,61 @@
 package com.adrianguenter.php_aliases;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.*;
 
 class AliasMappingDraft {
-    public record ValidationError(AliasTableModel.Column column, String message) {
+    public record ValidationError(String message, @Nullable AliasTableModel.Column column) {
+    }
+
+    public record ValidationWarning(String message, @Nullable AliasTableModel.Column column) {
     }
 
     final private UUID uuid;
     private int index;
     private String alias;
     private String fqn;
+    private final String originalAlias;
+    private final String originalFqn;
     private boolean isValidated;
+    final private Set<String> fqnSet;
     final private List<ValidationError> validationErrors;
-    private boolean isDirty;
+    final private List<ValidationWarning> validationWarnings;
 
-    public static AliasMappingDraft fromAliasMapping(AliasMapping mapping, int index) {
+    public static AliasMappingDraft fromAliasMapping(AliasMapping mapping, int index, Set<String> fqnSet) {
         return new AliasMappingDraft(
                 mapping.uuid,
                 index,
                 mapping.alias,
-                mapping.fullyQualifiedName
+                mapping.fullyQualifiedName,
+                fqnSet
         );
     }
 
-    public AliasMappingDraft(UUID uuid, int index, String alias, String fqn) {
+    public AliasMappingDraft(UUID uuid, int index, String alias, String fqn, Set<String> fqnSet) {
         this.uuid = uuid;
         this.index = index;
         this.setAlias(alias);
         this.setFqn(fqn);
+        this.originalAlias = this.alias;
+        this.originalFqn = this.fqn;
         this.isValidated = false;
+        this.fqnSet = fqnSet;
         this.validationErrors = new ArrayList<>();
-        this.isDirty = false;
+        this.validationWarnings = new ArrayList<>();
     }
 
-    public AliasMapping toAliasMapping(boolean resetDirty) {
+    public AliasMapping toAliasMapping() {
         if (!this.isValid()) {
             throw new RuntimeException("Draft must be valid before converting it to an AliasMapping");
         }
 
-        var mapping = new AliasMapping(
+        return new AliasMapping(
                 this.uuid,
                 this.alias,
                 this.fqn,
                 true
         );
-
-        if (resetDirty) {
-            this.isDirty = false;
-        }
-
-        return mapping;
-    }
-
-    public AliasMapping toAliasMapping() {
-        return this.toAliasMapping(false);
     }
 
     public int getIndex() {
@@ -63,13 +63,12 @@ class AliasMappingDraft {
     }
 
     public void setIndex(int index) {
-        if (index != this.index) {
-            this.isDirty = true;
-            this.isValidated = false;
-            this.index = index;
+        if (index == this.index) {
+            return;
         }
 
-
+        this.isValidated = false;
+        this.index = index;
     }
 
     public String getAlias() {
@@ -77,11 +76,12 @@ class AliasMappingDraft {
     }
 
     public void setAlias(String alias) {
-        if (!alias.equals(this.alias)) {
-            this.isDirty = true;
-            this.isValidated = false;
-            this.alias = alias;
+        if (alias.equals(this.alias)) {
+            return;
         }
+
+        this.isValidated = false;
+        this.alias = alias;
     }
 
     public String getFqn() {
@@ -93,11 +93,12 @@ class AliasMappingDraft {
             fqn = "\\" + fqn;
         }
 
-        if (!fqn.equals(this.fqn)) {
-            this.isDirty = true;
-            this.isValidated = false;
-            this.fqn = fqn;
+        if (fqn.equals(this.fqn)) {
+            return;
         }
+
+        this.isValidated = false;
+        this.fqn = fqn;
     }
 
     public String getValueAtColumn(AliasTableModel.Column column) {
@@ -105,10 +106,6 @@ class AliasMappingDraft {
             case Alias -> this.getAlias();
             case Fqn -> this.getFqn();
         };
-    }
-
-    public String getValueAtColumn(int column) {
-        return this.getValueAtColumn(AliasTableModel.Column.forIndex(column));
     }
 
     public void setValueAtColumn(String value, AliasTableModel.Column column) {
@@ -122,16 +119,12 @@ class AliasMappingDraft {
         }
     }
 
-    public void setValueAtColumn(String value, int column) {
-        this.setValueAtColumn(value, AliasTableModel.Column.forIndex(column));
-    }
-
     public List<ValidationError> getValidationErrors() {
         if (!this.isValidated) {
             this.validate();
         }
 
-        return List.copyOf(this.validationErrors);
+        return Collections.unmodifiableList(this.validationErrors);
     }
 
     public List<ValidationError> getValidationErrorsAtColumn(AliasTableModel.Column column) {
@@ -140,8 +133,22 @@ class AliasMappingDraft {
                 .toList();
     }
 
+    public List<ValidationWarning> getValidationWarnings() {
+        if (!this.isValidated) {
+            this.validate();
+        }
+
+        return Collections.unmodifiableList(this.validationWarnings);
+    }
+
+    public List<ValidationWarning> getValidationWarningsAtColumn(AliasTableModel.Column column) {
+        return this.getValidationWarnings().stream()
+                .filter(v -> v.column == column)
+                .toList();
+    }
+
     public boolean isDirty() {
-        return this.isDirty;
+        return !Objects.equals(this.alias, this.originalAlias) || !Objects.equals(this.fqn, this.originalFqn);
     }
 
     public boolean isEmpty() {
@@ -154,36 +161,38 @@ class AliasMappingDraft {
         return this.validationErrors.isEmpty();
     }
 
+    public boolean isStrictlyValid() {
+        if (!this.isValid()) {
+            return false;
+        }
+
+        return this.validationWarnings.isEmpty();
+    }
+
     private void validate() {
         if (this.isValidated) {
             return;
         }
 
         this.validationErrors.clear();
+        this.validationWarnings.clear();
 
         // Validate Alias
         if (this.alias.isEmpty()) {
-            this.validationErrors.add(new ValidationError(AliasTableModel.Column.Alias, "Alias cannot be empty."));
+            this.validationErrors.add(new ValidationError("Alias cannot be empty.", AliasTableModel.Column.Alias));
         } else if (!alias.matches("^[A-Za-z0-9_]+$")) {
-            this.validationErrors.add(new ValidationError(AliasTableModel.Column.Alias, "Invalid alias."));
+            this.validationErrors.add(new ValidationError("Invalid alias.", AliasTableModel.Column.Alias));
         }
 
         // Validate FQN
         if (this.fqn.isEmpty()) {
-            this.validationErrors.add(new ValidationError(AliasTableModel.Column.Fqn, "Fully qualified name cannot be empty."));
+            this.validationErrors.add(new ValidationError("Fully qualified name cannot be empty.", AliasTableModel.Column.Fqn));
         } else if (!fqn.matches("^(\\\\[A-Za-z0-9_]+)+$")) {
-            this.validationErrors.add(new ValidationError(AliasTableModel.Column.Fqn, "Invalid fully qualified name."));
+            this.validationErrors.add(new ValidationError("Invalid fully qualified name.", AliasTableModel.Column.Fqn));
+        } else if (!fqnSet.contains(this.fqn)) {
+            this.validationWarnings.add(new ValidationWarning("Unknown FQN", AliasTableModel.Column.Fqn));
         }
 
         this.isValidated = true;
-
-//            var previous = getValidationError(rowIndex);
-//            validationErrors.set(rowIndex, error);
-//
-//            if (!Objects.equals(previous, error)) {
-//                fireTableCellUpdated(rowIndex, 0);
-//                fireTableCellUpdated(rowIndex, 1);
-//                notifyValidationStateChange();
-//            }
     }
 }

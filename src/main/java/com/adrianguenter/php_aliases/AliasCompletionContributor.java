@@ -74,7 +74,7 @@ public class AliasCompletionContributor
         });
     }
 
-    // TODO: only look at DIRECT children when provided a PhpFile! Otherwise we find use statements in namespaces too
+    // TODO: only look at DIRECT children when provided value PhpFile! Otherwise we find use statements in namespaces too
     // TODO: Deduplicate this method...where to put it?
     private boolean isUseStatementPresent(PhpPsiElement context, String fqcn, String alias) {
         Collection<PhpUse> useStatements = PsiTreeUtil.findChildrenOfType(context, PhpUse.class);
