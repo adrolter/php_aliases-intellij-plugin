@@ -8,6 +8,7 @@ import java.util.UUID;
 
 @Tag("AliasMapping")
 public class AliasMapping {
+
     @Attribute(value = "uuid", converter = UUIDConverter.class)
     public UUID uuid;
 
@@ -30,5 +31,9 @@ public class AliasMapping {
         this.alias = alias;
         this.fullyQualifiedName = fullyQualifiedName;
         this.isActive = isActive;
+    }
+
+    public AliasTableModel.AliasFqnPair getAliasFqnPair() {
+        return new AliasTableModel.AliasFqnPair(this.alias, this.fullyQualifiedName);
     }
 }

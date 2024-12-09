@@ -25,9 +25,11 @@ public class SettingsConfigurable
     private SettingsComponent settingsComponent;
     private final Project project;
     private final HashMap<String, AutoCompletionData> knownFqns = new HashMap<>();
+    private final Settings settingsService;
 
     public SettingsConfigurable(@NotNull Project project) {
         this.project = project;
+        this.settingsService = Settings.getInstance(project);
     }
 
     @Override
@@ -53,42 +55,39 @@ public class SettingsConfigurable
                 })
         );
         this.populateKnownFqns();
-        return settingsComponent.getPanel();
+        return this.settingsComponent.getPanel();
     }
 
     @Override
     public boolean isModified() {
-        if (settingsComponent == null) {
+        if (this.settingsComponent == null) {
             return false;
         }
 
-        if (!settingsComponent.getTableModel().isValid()) {
+        if (!this.settingsComponent.getTableModel().isValid()) {
             // An invalid model always implies modification
             return true;
         }
 
-        return settingsComponent.getTableModel().isModified();
+        return this.settingsComponent.getTableModel().isModified();
     }
 
     @Override
     public void apply() throws ConfigurationException {
-        Settings.State state = Objects.requireNonNull(Settings.getInstance(project).getState());
-
-        if (!settingsComponent.getTableModel().isValid()) {
+        if (!this.settingsComponent.getTableModel().isValid()) {
             throw new ConfigurationException("There are validation errors in the alias mappings. Please fix them before applying.");
         }
 
-        state.aliasMappings = settingsComponent.getTableModel().getAliasMappings();
+        this.getSettingsState().aliasMappings = this.settingsComponent.getTableModel().getAliasMappings();
 
-        reset();
+        this.reset();
     }
 
     @Override
     public void reset() {
-        Settings.State state = Objects.requireNonNull(Settings.getInstance(project).getState());
-        settingsComponent.getTableModel().setAliasMappings(state.aliasMappings);
+        this.settingsComponent.getTableModel().setAliasMappings(this.getSettingsState().aliasMappings);
 
-        DialogWrapper dialog = DialogWrapper.findInstance(settingsComponent.getPanel());
+        DialogWrapper dialog = DialogWrapper.findInstance(this.settingsComponent.getPanel());
         if (dialog != null) {
             dialog.setOKActionEnabled(true);
         }
@@ -96,11 +95,15 @@ public class SettingsConfigurable
 
     @Override
     public void disposeUIResources() {
-        settingsComponent = null;
+        this.settingsComponent = null;
+    }
+
+    private Settings.State getSettingsState() {
+        return Objects.requireNonNull(this.settingsService.getState());
     }
 
     private void populateKnownFqns() {
-        PhpIndex phpIndex = PhpIndex.getInstance(project);
+        PhpIndex phpIndex = PhpIndex.getInstance(this.project);
         this.knownFqns.clear();
 
         var processNamespace = new Function<String, Void>() {
@@ -115,11 +118,19 @@ public class SettingsConfigurable
 
                 var namespace = matcher.group("namespace");
 
-                if (knownFqns.containsKey(namespace)) {
+                if (SettingsConfigurable.this.knownFqns.containsKey(namespace)) {
                     return null;
                 }
 
-                knownFqns.put(namespace, new AutoCompletionData(PhpIcons.NAMESPACE, null, "Namespace", namespace.substring(1)));
+                SettingsConfigurable.this.knownFqns.put(
+                        namespace,
+                        new AutoCompletionData(
+                                PhpIcons.NAMESPACE,
+                                null,
+                                "Namespace",
+                                namespace.substring(1)
+                        )
+                );
 
                 this.apply(namespace);
 
@@ -130,9 +141,25 @@ public class SettingsConfigurable
         for (String className : phpIndex.getAllClassNames(null)) {
             phpIndex.getClassesByName(className).forEach(phpClass -> {
                 if (phpClass.isEnum()) {
-                    this.knownFqns.put(phpClass.getFQN(), new AutoCompletionData(AllIcons.Nodes.Enum, null, "Enum", phpClass.getFQN().substring(1)));
+                    this.knownFqns.put(
+                            phpClass.getFQN(),
+                            new AutoCompletionData(
+                                    AllIcons.Nodes.Enum,
+                                    null,
+                                    "Enum",
+                                    phpClass.getFQN().substring(1)
+                            )
+                    );
                 } else {
-                    this.knownFqns.put(phpClass.getFQN(), new AutoCompletionData(PhpIcons.CLASS, null, "Class", phpClass.getFQN().substring(1)));
+                    this.knownFqns.put(
+                            phpClass.getFQN(),
+                            new AutoCompletionData(
+                                    PhpIcons.CLASS,
+                                    null,
+                                    "Class",
+                                    phpClass.getFQN().substring(1)
+                            )
+                    );
                 }
 
                 processNamespace.apply(phpClass.getFQN());
@@ -141,7 +168,14 @@ public class SettingsConfigurable
 
         for (String interfaceName : phpIndex.getAllInterfaceNames()) {
             phpIndex.getInterfacesByName(interfaceName).forEach(phpClass -> {
-                this.knownFqns.put(phpClass.getFQN(), new AutoCompletionData(PhpIcons.INTERFACE, null, "Interface", phpClass.getFQN().substring(1)));
+                this.knownFqns.put(
+                        phpClass.getFQN(),
+                        new AutoCompletionData(PhpIcons.INTERFACE,
+                                null,
+                                "Interface",
+                                phpClass.getFQN().substring(1)
+                        )
+                );
 
                 processNamespace.apply(phpClass.getFQN());
             });
@@ -149,7 +183,15 @@ public class SettingsConfigurable
 
         for (String traitName : phpIndex.getAllTraitNames()) {
             phpIndex.getTraitsByName(traitName).forEach(phpClass -> {
-                this.knownFqns.put(phpClass.getFQN(), new AutoCompletionData(PhpIcons.TRAIT, null, "Trait", phpClass.getFQN().substring(1)));
+                this.knownFqns.put(
+                        phpClass.getFQN(),
+                        new AutoCompletionData(
+                                PhpIcons.TRAIT,
+                                null,
+                                "Trait",
+                                phpClass.getFQN().substring(1)
+                        )
+                );
 
                 processNamespace.apply(phpClass.getFQN());
             });

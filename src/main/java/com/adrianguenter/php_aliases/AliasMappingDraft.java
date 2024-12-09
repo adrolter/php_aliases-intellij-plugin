@@ -179,18 +179,18 @@ class AliasMappingDraft {
 
         // Validate Alias
         if (this.alias.isEmpty()) {
-            this.validationErrors.add(new ValidationError("Alias cannot be empty.", AliasTableModel.Column.Alias));
-        } else if (!alias.matches("^[A-Za-z0-9_]+$")) {
-            this.validationErrors.add(new ValidationError("Invalid alias.", AliasTableModel.Column.Alias));
+            this.validationErrors.add(new ValidationError("Alias cannot be empty", AliasTableModel.Column.Alias));
+        } else if (!this.alias.matches("^[A-Za-z0-9_]+$")) {
+            this.validationErrors.add(new ValidationError("Invalid alias: " + this.alias, AliasTableModel.Column.Alias));
         }
 
         // Validate FQN
         if (this.fqn.isEmpty()) {
-            this.validationErrors.add(new ValidationError("Fully qualified name cannot be empty.", AliasTableModel.Column.Fqn));
-        } else if (!fqn.matches("^(\\\\[A-Za-z0-9_]+)+$")) {
-            this.validationErrors.add(new ValidationError("Invalid fully qualified name.", AliasTableModel.Column.Fqn));
-        } else if (!fqnSet.contains(this.fqn)) {
-            this.validationWarnings.add(new ValidationWarning("Unknown FQN", AliasTableModel.Column.Fqn));
+            this.validationErrors.add(new ValidationError("Fully qualified name cannot be empty", AliasTableModel.Column.Fqn));
+        } else if (!this.fqn.matches("^(\\\\[A-Za-z0-9_]+)+$")) {
+            this.validationErrors.add(new ValidationError("Invalid fully qualified name: " + this.fqn, AliasTableModel.Column.Fqn));
+        } else if (!this.fqnSet.contains(this.fqn)) {
+            this.validationWarnings.add(new ValidationWarning("Unknown fully qualified name: " + this.fqn, AliasTableModel.Column.Fqn));
         }
 
         this.isValidated = true;

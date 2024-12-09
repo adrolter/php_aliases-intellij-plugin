@@ -24,7 +24,7 @@ public class AliasTableModel extends AbstractTableModel {
         }
     }
 
-    private record AliasFqnPair(String alias, String fqn) {
+    public record AliasFqnPair(String alias, String fqn) {
     }
 
     private final List<AliasMappingDraft> draftsList = new ArrayList<>();
@@ -40,33 +40,33 @@ public class AliasTableModel extends AbstractTableModel {
     }
 
     private void notifyValidationStateChange() {
-        if (validationListener != null) {
-            validationListener.run();
+        if (this.validationListener != null) {
+            this.validationListener.run();
         }
     }
 
     public List<AliasMapping> getAliasMappings() {
-        return draftsList.stream()
+        return this.draftsList.stream()
                 .filter(AliasMappingDraft::isValid)
                 .map(AliasMappingDraft::toAliasMapping)
                 .toList();
     }
 
     public void setAliasMappings(List<AliasMapping> aliasMappings) {
-        draftsList.clear();
-        draftsList.addAll(
+        this.draftsList.clear();
+        this.draftsList.addAll(
                 aliasMappings.stream()
                         .map(v -> AliasMappingDraft.fromAliasMapping(v, 0, this.fqnSet))
                         .toList());
-        draftsList.add(new AliasMappingDraft(UUID.randomUUID(), draftsList.size(), "", "", this.fqnSet));
+        this.draftsList.add(new AliasMappingDraft(UUID.randomUUID(), this.draftsList.size(), "", "", this.fqnSet));
 
-        originalAliasMappingsCount = draftsList.size();
-        fireTableDataChanged();
+        this.originalAliasMappingsCount = this.draftsList.size();
+        this.fireTableDataChanged();
     }
 
     @Override
     public int getRowCount() {
-        return draftsList.size();
+        return this.draftsList.size();
     }
 
     @Override
@@ -79,26 +79,26 @@ public class AliasTableModel extends AbstractTableModel {
         return Column.forIndex(index).label();
     }
 
-    public Object getValueAt(int rowIndex, Column column) {
-        return draftsList.get(rowIndex).getValueAtColumn(column);
+    public String getValueAt(int rowIndex, Column column) {
+        return this.draftsList.get(rowIndex).getValueAtColumn(column);
     }
 
     @Override
-    public Object getValueAt(int rowIndex, int columnIndex) {
+    public String getValueAt(int rowIndex, int columnIndex) {
         return this.getValueAt(rowIndex, Column.forIndex(columnIndex));
     }
 
     public void setValueAt(Object aValue, int rowIndex, Column column) {
         String value = aValue != null ? aValue.toString().trim() : "";
 
-        draftsList.get(rowIndex).setValueAtColumn(value, column);
-        fireTableCellUpdated(rowIndex, column.index());
+        this.draftsList.get(rowIndex).setValueAtColumn(value, column);
+        this.fireTableCellUpdated(rowIndex, column.index());
 
-        if (rowIndex == draftsList.size() - 1 && column == Column.Alias && !value.isEmpty()) {
+        if (rowIndex == this.draftsList.size() - 1 && column == Column.Alias && !value.isEmpty()) {
             // Add value new entry when typing into the blank row
-            var newRowIndex = draftsList.size();
-            draftsList.add(new AliasMappingDraft(UUID.randomUUID(), newRowIndex, "", "", this.fqnSet));
-            fireTableRowsInserted(newRowIndex, newRowIndex);
+            var newRowIndex = this.draftsList.size();
+            this.draftsList.add(new AliasMappingDraft(UUID.randomUUID(), newRowIndex, "", "", this.fqnSet));
+            this.fireTableRowsInserted(newRowIndex, newRowIndex);
         }
     }
 
@@ -109,19 +109,19 @@ public class AliasTableModel extends AbstractTableModel {
 
     @Override
     public boolean isCellEditable(int rowIndex, int columnIndex) {
-        return Column.forIndex(columnIndex) == Column.Alias || !draftsList.get(rowIndex).getAlias().isEmpty();
+        return Column.forIndex(columnIndex) == Column.Alias || !this.draftsList.get(rowIndex).getAlias().isEmpty();
     }
 
     public void removeRowAt(int index) {
-        if (index < 0 || index > draftsList.size()) {
+        if (index < 0 || index > this.draftsList.size()) {
             throw new IndexOutOfBoundsException();
         }
 
-        draftsList.remove(index);
+        this.draftsList.remove(index);
 
         // TODO: Do we need this at all? We should remove AliasMappingDraft.index if it isn't used
         int i = 0;
-        for (AliasMappingDraft draft : draftsList) {
+        for (AliasMappingDraft draft : this.draftsList) {
             try {
                 if (i < index) {
                     continue;
@@ -134,52 +134,47 @@ public class AliasTableModel extends AbstractTableModel {
         }
 
         // TODO: Before rewriting indices?
-        fireTableRowsDeleted(index, index);
+        this.fireTableRowsDeleted(index, index);
         if (index > 0) {
-            fireTableRowsUpdated(index, index - 1);
+            this.fireTableRowsUpdated(index, index - 1);
         }
-//        // Force repaint if necessary
-//        SwingUtilities.invokeLater(() -> {
-//            tableMode.revalidate();
-//            table.repaint();
-//        });
     }
 
     public List<AliasMappingDraft.ValidationError> getValidationErrorsAt(int index, Column column) {
-        return draftsList.get(index).getValidationErrorsAtColumn(column);
+        return this.draftsList.get(index).getValidationErrorsAtColumn(column);
     }
 
     public List<AliasMappingDraft.ValidationError> getValidationErrorsAt(int index) {
-        return draftsList.get(index).getValidationErrors();
+        return this.draftsList.get(index).getValidationErrors();
     }
 
     public List<AliasMappingDraft.ValidationWarning> getValidationWarningsAt(int index, Column column) {
-        return draftsList.get(index).getValidationWarningsAtColumn(column);
+        return this.draftsList.get(index).getValidationWarningsAtColumn(column);
     }
 
     public List<AliasMappingDraft.ValidationWarning> getValidationWarningsAt(int index) {
-        return draftsList.get(index).getValidationWarnings();
+        return this.draftsList.get(index).getValidationWarnings();
     }
 
     public boolean rowIsEmpty(int index) {
-        return draftsList.get(index).isEmpty();
+        return this.draftsList.get(index).isEmpty();
     }
 
     public boolean rowIsValid(int index) {
-        return draftsList.get(index).isValid();
+        return this.draftsList.get(index).isValid();
     }
 
     public boolean rowIsLast(int index) {
-        return index == draftsList.size() - 1;
+        return index == this.draftsList.size() - 1;
     }
 
     public boolean isValid() {
         int i = 0;
-        for (AliasMappingDraft draft : draftsList) {
+        for (AliasMappingDraft draft : this.draftsList) {
             try {
-                if (!draft.isValid() && (!rowIsLast(i) || !draft.isEmpty())) {
+                if (!draft.isValid() && (!this.rowIsLast(i) || !draft.isEmpty())) {
                     if (this.isValid) {
-                        notifyValidationStateChange();
+                        this.notifyValidationStateChange();
                     }
 
                     this.isValid = false;
@@ -191,7 +186,7 @@ public class AliasTableModel extends AbstractTableModel {
         }
 
         if (!this.isValid) {
-            notifyValidationStateChange();
+            this.notifyValidationStateChange();
         }
 
         this.isValid = true;
@@ -199,11 +194,11 @@ public class AliasTableModel extends AbstractTableModel {
     }
 
     public boolean isModified() {
-        if (draftsList.size() != originalAliasMappingsCount) {
+        if (this.draftsList.size() != this.originalAliasMappingsCount) {
             return true;
         }
 
-        for (AliasMappingDraft draft : draftsList) {
+        for (AliasMappingDraft draft : this.draftsList) {
             if (draft.isDirty()) {
                 return true;
             }
