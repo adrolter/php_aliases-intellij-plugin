@@ -87,7 +87,7 @@ fun getChangeNotes(): String {
         commandLine(
             "/bin/sh",
             "-c",
-            "git log $(git describe --tags --abbrev=0)..HEAD --no-merges --oneline --pretty=format:\"<li>%h %s (%an)</li>\""
+            "git log \"\$(git tag --list | grep -E '^v[0-9]+\\.[0-9]+(\\.[0-9]+)?' |  sort -V | tail -n2 | tr '\\n' ' ' | awk '{print \$1\"..\"\$2}')\"  --no-merges --oneline --pretty=format:\"<li>%h %s (%an)</li>\" | sed '\$d'"
         )
     }.standardOutput.asText.get().trim()
 }
