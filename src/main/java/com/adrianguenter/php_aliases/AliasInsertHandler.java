@@ -11,11 +11,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.jetbrains.php.lang.psi.PhpFile;
 import com.intellij.psi.PsiFile;
 import com.jetbrains.php.lang.psi.PhpPsiElementFactory;
-import com.jetbrains.php.lang.psi.elements.PhpNamespace;
-import com.jetbrains.php.lang.psi.elements.PhpPsiElement;
-import com.jetbrains.php.lang.psi.elements.PhpUse;
-import com.jetbrains.php.lang.psi.elements.PhpUseList;
-import com.jetbrains.php.lang.psi.elements.impl.GroupStatementImpl;
+import com.jetbrains.php.lang.psi.elements.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
@@ -48,30 +44,27 @@ public class AliasInsertHandler implements InsertHandler<LookupElement> {
         WriteCommandAction.runWriteCommandAction(project, () -> {
             // Insert alias at caret position
             context.getDocument().replaceString(context.getStartOffset(), context.getTailOffset(), this.alias);
-//            PsiDocumentManager.getInstance(project).commitDocument(context.getDocument());
 
-            boolean doOptimizeImports;
-            if (this.isUseStatementPresent(namespace != null ? namespace : phpFile, this.fqcn, this.alias)) {
-                doOptimizeImports = false;
-            } else {
+            if (!this.isUseStatementPresent(namespace != null ? namespace : phpFile, this.fqcn, this.alias)) {
                 this.addUseStatementWithAlias(project, namespace != null ? namespace : phpFile, this.fqcn, this.alias);
-                doOptimizeImports = true;
-            }
-
-            if (doOptimizeImports) {
-                new OptimizeImportsProcessor(phpFile.getProject(), phpFile).runWithoutProgress();
+                var optimizer = new OptimizeImportsProcessor(phpFile.getProject(), phpFile);
+                optimizer.run();
             }
         });
     }
 
     private void addUseStatementWithAlias(Project project, PhpPsiElement target, String fqcn, String alias) {
         PhpUseList useStmt = PhpPsiElementFactory.createUseStatement(project, fqcn, alias);
-        PhpPsiElement firstChild = target.getFirstPsiChild();
-        if (firstChild instanceof GroupStatementImpl) {
-            firstChild.addBefore(useStmt, firstChild.getFirstPsiChild());
-        } else {
-            target.addBefore(useStmt, firstChild);
+        var child = target.getFirstPsiChild();
+        while (child != null && !(child instanceof GroupStatement)) {
+            child = child.getNextPsiSibling();
         }
+
+        if (child == null) {
+            return;
+        }
+
+        child.addBefore(useStmt, child.getFirstPsiChild());
     }
 
     private boolean isUseStatementPresent(PhpPsiElement context, String fqcn, String alias) {
