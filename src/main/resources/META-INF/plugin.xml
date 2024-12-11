@@ -24,6 +24,7 @@
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity implementation="com.adrianguenter.php_aliases.UseStatementInterceptor$StartupActivity"/>
         <projectConfigurable displayName="Aliases"
                              id="com.adrianguenter.php_aliases.service.Settings"
                              parentId="reference.webide.settings.project.settings.php"

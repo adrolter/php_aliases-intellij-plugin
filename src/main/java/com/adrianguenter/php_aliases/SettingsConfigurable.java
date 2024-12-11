@@ -20,7 +20,7 @@ public class SettingsConfigurable
 
     public SettingsConfigurable(@NotNull Project project) {
         this.project = project;
-        this.settingsService = Settings.getInstance(project);
+        this.settingsService = project.getService(Settings.class);
     }
 
     @Override

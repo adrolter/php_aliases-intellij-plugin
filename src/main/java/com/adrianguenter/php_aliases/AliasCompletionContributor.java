@@ -29,7 +29,7 @@ public class AliasCompletionContributor
                             @NotNull ProcessingContext context,
                             @NotNull CompletionResultSet resultSet
                     ) {
-                        var settingsService = Settings.getInstance(parameters.getOriginalFile().getProject());
+                        var settingsService = parameters.getOriginalFile().getProject().getService(Settings.class);
                         var state = Objects.requireNonNull(settingsService.getState());
                         var phpFile = (PhpFile) parameters.getOriginalFile();
                         var elementContext = parameters.getOriginalPosition();

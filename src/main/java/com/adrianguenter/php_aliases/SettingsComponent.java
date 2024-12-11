@@ -38,14 +38,14 @@ public class SettingsComponent {
             Project project,
             Runnable validationListener
     ) {
-        PhpIndexImpl phpIndex = (PhpIndexImpl) PhpIndex.getInstance(project);
+        var phpIndex = (PhpIndexImpl) PhpIndex.getInstance(project);
 
         FqnValidator fqnValidator = (String fqn) -> !phpIndex.getClassesByFQN(fqn).isEmpty()
                 || !phpIndex.getInterfacesByFQN(fqn).isEmpty()
                 || !phpIndex.getTraitsByFQN(fqn).isEmpty()
                 || phpIndex.getAllChildNamespacesFqns("\\").contains(fqn);
 
-        var autoCompletionDataProvider = new AutoCompletionDataProvider(phpIndex);
+        var autoCompletionDataProvider = project.getService(AutoCompletionDataProvider.class);
 
         this.project = project;
         this.tableModel = new AliasTableModel(validationListener, fqnValidator);
@@ -301,7 +301,7 @@ public class SettingsComponent {
         }
 
         // StringsCompletionWithCacheProvider
-        private static class PhpClasslikeCompletionProvider
+        private class PhpClasslikeCompletionProvider
                 extends TextFieldWithAutoCompletion.StringsCompletionProvider {
 
             private final PhpIndexImpl phpIndex;
@@ -314,7 +314,7 @@ public class SettingsComponent {
                 super(null, icon);
 
                 this.phpIndex = phpIndex;
-                this.autoCompletionDataProvider = new AutoCompletionDataProvider(phpIndex);
+                this.autoCompletionDataProvider = SettingsComponent.this.project.getService(AutoCompletionDataProvider.class);
             }
 
             @Override

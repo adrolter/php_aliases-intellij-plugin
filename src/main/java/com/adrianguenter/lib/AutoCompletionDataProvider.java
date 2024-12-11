@@ -1,20 +1,22 @@
 package com.adrianguenter.lib;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.components.Service;
+import com.intellij.openapi.project.Project;
 import com.jetbrains.php.PhpIcons;
 import com.jetbrains.php.PhpIndex;
 
 import java.util.Optional;
 
-public class AutoCompletionDataProvider {
+@Service(Service.Level.PROJECT)
+public final class AutoCompletionDataProvider {
 
     private final PhpIndex phpIndex;
 
     public AutoCompletionDataProvider(
-            PhpIndex phpIndex
+            Project project
     ) {
-
-        this.phpIndex = phpIndex;
+        this.phpIndex = PhpIndex.getInstance(project);
     }
 
     public Optional<AutoCompletionData> forFqn(
@@ -22,11 +24,12 @@ public class AutoCompletionDataProvider {
     ) {
         var unprefixedFqn = fqn.substring(1);
 
-        var optionalPhpClass = this.phpIndex.getAnyByFQN(fqn).stream().findFirst();
-        if (optionalPhpClass.isEmpty()) {
-            var optionalPhpNamespace = this.phpIndex.getNamespacesByName(fqn).stream().findFirst();
-            if (optionalPhpNamespace.isPresent()) {
+        var maybePhpClass = this.phpIndex.getAnyByFQN(fqn).stream().findFirst();
+        if (maybePhpClass.isEmpty()) {
+            var maybePhpNamespace = this.phpIndex.getNamespacesByName(fqn).stream().findFirst();
+            if (maybePhpNamespace.isPresent()) {
                 return Optional.of(new AutoCompletionData(
+                        FqnType.Namespace,
                         PhpIcons.NAMESPACE,
                         null,
                         "Namespace",
@@ -37,10 +40,11 @@ public class AutoCompletionDataProvider {
             return Optional.empty();
         }
 
-        var phpClass = optionalPhpClass.get();
+        var phpClass = maybePhpClass.get();
 
         if (phpClass.isInterface()) {
             return Optional.of(new AutoCompletionData(
+                    FqnType.Interface,
                     PhpIcons.INTERFACE,
                     null,
                     "Interface",
@@ -48,6 +52,7 @@ public class AutoCompletionDataProvider {
             ));
         } else if (phpClass.isTrait()) {
             return Optional.of(new AutoCompletionData(
+                    FqnType.Trait,
                     PhpIcons.TRAIT,
                     null,
                     "Trait",
@@ -55,23 +60,29 @@ public class AutoCompletionDataProvider {
             ));
         } else if (phpClass.isEnum()) {
             return Optional.of(new AutoCompletionData(
+                    FqnType.Enum,
                     AllIcons.Nodes.Enum,
                     null,
                     "Enum",
                     unprefixedFqn
             ));
         } else {
-            var isException = false;
             var currentClass = phpClass;
             do {
                 if ("\\Exception".equals(currentClass.getFQN())) {
-                    isException = true;
-                    break;
+                    return Optional.of(new AutoCompletionData(
+                            FqnType.Exception,
+                            PhpIcons.EXCEPTION,
+                            null,
+                            "Exception",
+                            unprefixedFqn
+                    ));
                 }
             } while ((currentClass = currentClass.getSuperClass()) != null);
 
             return Optional.of(new AutoCompletionData(
-                    isException ? PhpIcons.EXCEPTION : PhpIcons.CLASS,
+                    FqnType.Class,
+                    PhpIcons.CLASS,
                     null,
                     "Class",
                     unprefixedFqn

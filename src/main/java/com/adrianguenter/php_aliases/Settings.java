@@ -23,10 +23,6 @@ final class Settings
     ) {
     }
 
-    public static Settings getInstance(@NotNull Project project) {
-        return project.getService(Settings.class);
-    }
-
     @Override
     @Nullable
     public State getState() {
