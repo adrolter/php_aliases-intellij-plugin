@@ -1,6 +1,7 @@
 package com.adrianguenter.php_aliases;
 
 import com.adrianguenter.lib.AutoCompletionDataProvider;
+import com.adrianguenter.lib.FqnType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.project.Project;
@@ -10,9 +11,9 @@ import com.intellij.psi.search.LocalSearchScope;
 import com.intellij.psi.search.searches.ReferencesSearch;
 import com.jetbrains.php.PhpIndex;
 import com.jetbrains.php.lang.psi.PhpPsiElementFactory;
+import com.jetbrains.php.lang.psi.elements.ClassReference;
 import com.jetbrains.php.lang.psi.elements.PhpUse;
 import com.jetbrains.php.lang.psi.elements.PhpUseList;
-import com.jetbrains.php.lang.psi.elements.impl.ClassReferenceImpl;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
@@ -54,23 +55,28 @@ public final class UseStatementInterceptor {
                 ApplicationManager.getApplication().invokeLater(() -> {
                     WriteCommandAction.runWriteCommandAction(project, () -> {
                         var autoCompletionData = this.autocompletionDataProvider.forFqn(fqn).orElseThrow();
-                        var alias = aliasMapping.alias;
+
+                        if (autoCompletionData.type() == FqnType.Namespace) {
+                            return;
+                        }
 
                         PsiElement fqnPsi = switch (autoCompletionData.type()) {
-                            case Namespace -> PhpIndex.getInstance(project).getNamespacesByName(fqn).iterator().next();
+//                            case Namespace -> PhpIndex.getInstance(project).getNamespacesByName(fqn).iterator().next();
                             case Class, Enum, Exception ->
                                     PhpIndex.getInstance(project).getClassesByFQN(fqn).iterator().next();
                             case Interface -> PhpIndex.getInstance(project).getInterfacesByFQN(fqn).iterator().next();
                             case Trait -> PhpIndex.getInstance(project).getTraitsByFQN(fqn).iterator().next();
+                            case Namespace -> throw new RuntimeException("Invalid type");
                         };
 
                         var references = ReferencesSearch
                                 .search(fqnPsi, new LocalSearchScope(useList.getContainingFile()))
                                 .findAll();
 
-                        var aliasReference = PhpPsiElementFactory.createClassReference(project, alias);
+                        var aliasReference = PhpPsiElementFactory.createClassReference(project, aliasMapping.alias);
+
                         for (PsiReference reference : references) {
-                            if (!(reference instanceof ClassReferenceImpl fqnReference)
+                            if (!(reference instanceof ClassReference fqnReference)
                                     || fqnReference.getParent() instanceof PhpUse) {
                                 continue;
                             }
@@ -78,7 +84,7 @@ public final class UseStatementInterceptor {
                             fqnReference.replace(aliasReference);
                         }
 
-                        var aliasUseList = PhpPsiElementFactory.createUseStatement(project, fqn, alias);
+                        var aliasUseList = PhpPsiElementFactory.createUseStatement(project, fqn, aliasMapping.alias);
                         useList.replace(aliasUseList);
                     });
                 });
