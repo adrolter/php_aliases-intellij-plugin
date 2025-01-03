@@ -210,7 +210,7 @@ public class SettingsComponent {
                         background = new JBColor(warningBackgroundLight, warningBackgroundDark);
                     } else {
                         if (column == AliasTableModel.Column.Fqn) {
-                            var autoCompletionData = autoCompletionDataProvider.forFqn(SettingsComponent.this.tableModel.getValueAt(rowIndex, column)).orElse(null);
+                            var autoCompletionData = autoCompletionDataProvider.forFqn((String) SettingsComponent.this.tableModel.getValueAt(rowIndex, column.index())).orElse(null);
                             if (autoCompletionData != null) {
                                 icon = autoCompletionData.icon();
                             }

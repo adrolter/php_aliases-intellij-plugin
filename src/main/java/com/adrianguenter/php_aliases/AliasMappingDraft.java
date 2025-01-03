@@ -16,30 +16,47 @@ class AliasMappingDraft {
     private int index;
     private String alias;
     private String fqn;
+    private Set<AliasMapping.Scope> scopes;
     private final String originalAlias;
     private final String originalFqn;
+    private final Set<AliasMapping.Scope> originalScopes;
     private boolean isValidated;
     final private FqnValidator fqnValidator;
     final private List<ValidationError> validationErrors;
     final private List<ValidationWarning> validationWarnings;
 
-    public static AliasMappingDraft fromAliasMapping(AliasMapping mapping, int index, FqnValidator fqnValidator) {
+    public static AliasMappingDraft fromAliasMapping(
+            AliasMapping mapping,
+            int index,
+            FqnValidator fqnValidator
+    ) {
         return new AliasMappingDraft(
                 mapping.uuid,
                 index,
                 mapping.alias,
                 mapping.fullyQualifiedName,
+                mapping.scopes,
                 fqnValidator
         );
     }
 
-    public AliasMappingDraft(UUID uuid, int index, String alias, String fqn, FqnValidator fqnValidator) {
+    public AliasMappingDraft(
+            UUID uuid,
+            int index,
+            String alias,
+            String fqn,
+            Set<AliasMapping.Scope> scopes,
+            FqnValidator fqnValidator
+    ) {
         this.uuid = uuid;
         this.index = index;
         this.setAlias(alias);
         this.setFqn(fqn);
+        this.setScopes(scopes);
         this.originalAlias = this.alias;
         this.originalFqn = this.fqn;
+        // FIXME: I don't think this works yet
+        this.originalScopes = this.scopes;
         this.isValidated = false;
         this.fqnValidator = fqnValidator;
         this.validationErrors = new ArrayList<>();
@@ -55,6 +72,7 @@ class AliasMappingDraft {
                 this.uuid,
                 this.alias,
                 this.fqn,
+                this.scopes,
                 true
         );
     }
@@ -102,20 +120,38 @@ class AliasMappingDraft {
         this.fqn = fqn;
     }
 
-    public String getValueAtColumn(AliasTableModel.Column column) {
+    public Set<AliasMapping.Scope> getScopes() {
+        return this.scopes;
+    }
+
+    public void setScopes(Set<AliasMapping.Scope> scopes) {
+        if (scopes == this.scopes) {
+            return;
+        }
+
+        this.isValidated = false;
+        this.scopes = scopes;
+    }
+
+    public Object getValueAtColumn(AliasTableModel.Column column) {
         return switch (column) {
             case Alias -> this.getAlias();
             case Fqn -> this.getFqn();
+            case Scopes -> this.getScopes();
         };
     }
 
-    public void setValueAtColumn(String value, AliasTableModel.Column column) {
+    @SuppressWarnings("unchecked")
+    public void setValueAtColumn(Object value, AliasTableModel.Column column) {
         switch (column) {
             case Alias:
-                this.setAlias(value);
+                this.setAlias((String) value);
                 break;
             case Fqn:
-                this.setFqn(value);
+                this.setFqn((String) value);
+                break;
+            case Scopes:
+                this.setScopes((Set<AliasMapping.Scope>) value);
                 break;
         }
     }

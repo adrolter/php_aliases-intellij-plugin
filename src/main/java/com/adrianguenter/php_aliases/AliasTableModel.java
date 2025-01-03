@@ -8,7 +8,8 @@ import java.util.*;
 public class AliasTableModel extends AbstractTableModel {
     public enum Column {
         Alias,
-        Fqn;
+        Fqn,
+        Scopes;
 
         public static Column forIndex(int index) {
             return Column.values()[index];
@@ -22,10 +23,12 @@ public class AliasTableModel extends AbstractTableModel {
             return switch (this) {
                 case Alias -> "Alias";
                 case Fqn -> "Fully Qualified Name";
+                case Scopes -> "Scopes";
             };
         }
     }
 
+    ///  TODO: Move to AliasMapping?
     public record AliasFqnPair(String alias, String fqn) {
     }
 
@@ -60,7 +63,14 @@ public class AliasTableModel extends AbstractTableModel {
                 aliasMappings.stream()
                         .map(v -> AliasMappingDraft.fromAliasMapping(v, 0, this.fqnValidator))
                         .toList());
-        this.draftsList.add(new AliasMappingDraft(UUID.randomUUID(), this.draftsList.size(), "", "", this.fqnValidator));
+        this.draftsList.add(new AliasMappingDraft(
+                UUID.randomUUID(),
+                this.draftsList.size(),
+                "",
+                "",
+                new HashSet<>(),
+                this.fqnValidator
+        ));
 
         this.originalAliasMappingsCount = this.draftsList.size();
         this.fireTableDataChanged();
@@ -81,17 +91,15 @@ public class AliasTableModel extends AbstractTableModel {
         return Column.forIndex(index).label();
     }
 
-    public String getValueAt(int rowIndex, Column column) {
-        return this.draftsList.get(rowIndex).getValueAtColumn(column);
+    @Override
+    public Object getValueAt(int rowIndex, int columnIndex) {
+        return this.draftsList.get(rowIndex).getValueAtColumn(Column.forIndex(columnIndex));
     }
 
     @Override
-    public String getValueAt(int rowIndex, int columnIndex) {
-        return this.getValueAt(rowIndex, Column.forIndex(columnIndex));
-    }
-
-    public void setValueAt(Object aValue, int rowIndex, Column column) {
-        String value = aValue != null ? aValue.toString().trim() : "";
+    public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
+        var column = Column.forIndex(columnIndex);
+        var value = aValue != null ? aValue.toString().trim() : "";
 
         this.draftsList.get(rowIndex).setValueAtColumn(value, column);
         this.fireTableCellUpdated(rowIndex, column.index());
@@ -99,14 +107,16 @@ public class AliasTableModel extends AbstractTableModel {
         if (rowIndex == this.draftsList.size() - 1 && column == Column.Alias && !value.isEmpty()) {
             // Add value new entry when typing into the blank row
             var newRowIndex = this.draftsList.size();
-            this.draftsList.add(new AliasMappingDraft(UUID.randomUUID(), newRowIndex, "", "", this.fqnValidator));
+            this.draftsList.add(new AliasMappingDraft(
+                    UUID.randomUUID(),
+                    newRowIndex,
+                    "",
+                    "",
+                    new HashSet<>(),
+                    this.fqnValidator
+            ));
             this.fireTableRowsInserted(newRowIndex, newRowIndex);
         }
-    }
-
-    @Override
-    public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
-        this.setValueAt(aValue, rowIndex, Column.forIndex(columnIndex));
     }
 
     @Override
