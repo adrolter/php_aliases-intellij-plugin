@@ -5,6 +5,7 @@ import com.adrianguenter.lib.FqnType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.startup.ProjectActivity;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.psi.*;
 import com.intellij.psi.search.LocalSearchScope;
@@ -14,7 +15,10 @@ import com.jetbrains.php.lang.psi.PhpPsiElementFactory;
 import com.jetbrains.php.lang.psi.elements.ClassReference;
 import com.jetbrains.php.lang.psi.elements.PhpUse;
 import com.jetbrains.php.lang.psi.elements.PhpUseList;
+import kotlin.Unit;
+import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -23,7 +27,9 @@ public final class UseStatementInterceptor {
     private final Settings settingsService;
     private final AutoCompletionDataProvider autocompletionDataProvider;
 
-    public UseStatementInterceptor(Project project) {
+    public UseStatementInterceptor(
+            Project project
+    ) {
         this.settingsService = project.getService(Settings.class);
         this.autocompletionDataProvider = project.getService(AutoCompletionDataProvider.class);
 
@@ -41,7 +47,10 @@ public final class UseStatementInterceptor {
         }, disposable);
     }
 
-    private void handleUseStatement(PhpUseList useList, Project project) {
+    private void handleUseStatement(
+            PhpUseList useList,
+            Project project
+    ) {
         var aliasMappings = Objects.requireNonNull(this.settingsService.getState()).aliasMappings;
 
         for (var useStatement : useList.getDeclarations()) {
@@ -95,11 +104,15 @@ public final class UseStatementInterceptor {
     }
 
     public static final class StartupActivity
-            implements com.intellij.openapi.startup.StartupActivity {
-
+            implements ProjectActivity {
         @Override
-        public void runActivity(@NotNull Project project) {
+        public @Nullable Object execute(
+                @NotNull Project project,
+                @NotNull Continuation<? super Unit> continuation
+        ) {
             new UseStatementInterceptor(project);
+
+            return null;
         }
     }
 }
